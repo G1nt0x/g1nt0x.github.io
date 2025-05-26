@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pentest AD Cheatsheet</title>
+  <!-- Hacker‑style aesthetics -->
+  <style>
+    :root {
+      --bg: #0d0d0d;
+      --fg: #00ff90;
+      --accent: #6affff;
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      font-family: "Source Code Pro", Menlo, monospace;
+      background: var(--bg);
+      color: var(--fg);
+    }
+    header {
+      padding: 1.5rem 1rem;
+      border-bottom: 1px solid var(--fg);
+    }
+    h1 {
+      margin: 0 0 1rem 0;
+      font-size: 1.8rem;
+      color: var(--accent);
+    }
+    label {
+      display: inline-block;
+      width: 170px;
+      margin: 0.25rem 0;
+    }
+    input {
+      background: #000;
+      color: var(--fg);
+      border: 1px solid var(--fg);
+      padding: 0.35rem 0.5rem;
+      width: 220px;
+    }
+    section {
+      padding: 1.25rem 1rem 3rem;
+    }
+    h2 {
+      color: var(--accent);
+      margin: 2rem 0 0.5rem;
+      font-size: 1.25rem;
+      border-bottom: 1px solid var(--accent);
+      padding-bottom: 0.25rem;
+    }
+    .command-block {
+      background: #000;
+      border: 1px solid var(--fg);
+      margin: 0.8rem 0;
+      padding: 0.75rem 0.5rem 0.75rem 0.75rem;
+      position: relative;
+      overflow-x: auto;
+    }
+    .command-block pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .copy-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      padding: 4px 10px;
+      border: none;
+      background: var(--fg);
+      color: #000;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .copy-btn:active {
+      transform: scale(0.97);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🛠️ Pentest Active Directory Cheatsheet</h1>
+
+    <!-- Variable Input Panel -->
+    <div id="variables">
+      <label for="domain">DOMAIN</label><input id="domain" placeholder="acme.local" /><br />
+      <label for="domain_name">DOMAIN_NAME</label><input id="domain_name" placeholder="acme.local" /><br />
+      <label for="name_server">NAME_SERVER</label><input id="name_server" placeholder="ns.acme.local" /><br />
+      <label for="dc_ip">DC_IP</label><input id="dc_ip" placeholder="192.168.1.10" /><br />
+      <label for="ip">IP</label><input id="ip" placeholder="192.168.1.10" /><br />
+      <label for="users_list_file">USERS_LIST_FILE</label><input id="users_list_file" placeholder="users.txt" /><br />
+    </div>
+  </header>
+
+  <!-- Commands will render here -->
+  <section id="commands"></section>
+
+  <script>
+    /* ---------------------------------------------
+     *  Dynamic Command Renderer
+     * -------------------------------------------*/
+
+    // Cheatsheet commands with placeholder tokens
+    const commands = [
+      {
+        section: "Find DC IP",
+        lines: [
+          "nmcli dev show eth0 # show domain name & dns",
+          "nslookup -type=SRV _ldap._tcp.dc._msdcs.DOMAIN",
+        ],
+      },
+      {
+        section: "Zone Transfer",
+        lines: ["dig axfr DOMAIN_NAME @NAME_SERVER"],
+      },
+      {
+        section: "List Guest Access on SMB Share",
+        lines: [
+          "enum4linux -a -u \"\" -p \"\" DC_IP",
+          "enum4linux -a -u \"guest\" -p \"\" DC_IP",
+          "smbmap -u \"\" -p \"\" -H DC_IP",
+          "smbmap -u \"guest\" -p \"\" -H DC_IP",
+          "smbclient -U '%' -L //DC_IP",
+          "smbclient -U 'guest%' -L //DC_IP",
+          "cme smb IP -u '' -p '' # enumerate null session",
+          "cme smb IP -u 'a' -p '' # enumerate anonymous access",
+        ],
+      },
+      {
+        section: "Enumerate LDAP",
+        lines: [
+          "nmap -n -sV --script \"ldap\" and not brute -p 389 DC_IP",
+          "ldapsearch -x -h IP -s base",
+        ],
+      },
+      {
+        section: "Find User List",
+        lines: [
+          "enum4linux -U DC_IP | grep 'user'",
+          "cme smb IP --users",
+          "net rpc group members 'Domain Users' -W 'DOMAIN' -I IP -U '%'",
+          "nmap -p 88 --script=krb5-enum-users --script-args=\"krb5-enum-users.realm=DOMAIN\",userdb=USERS_LIST_FILE IP",
+        ],
+      },
+      {
+        section: "Poisoning (LLMNR/NBTNS/MDNS)",
+        lines: [
+          "responder -I eth0  # disable smb & http if relay",
+          "mitm6 -d DOMAIN",
+          "bettercap",
+        ],
+      },
+    ];
+
+    // Map placeholder → input#id
+    const placeholderMap = {
+      DOMAIN: "domain",
+      DOMAIN_NAME: "domain_name",
+      NAME_SERVER: "name_server",
+      DC_IP: "dc_ip",
+      IP: "ip",
+      USERS_LIST_FILE: "users_list_file",
+    };
+
+    const commandsDiv = document.getElementById("commands");
+
+    // Render commands to the DOM
+    function renderCommands() {
+      commandsDiv.innerHTML = "";
+      commands.forEach((sec) => {
+        const h = document.createElement("h2");
+        h.textContent = sec.section;
+        commandsDiv.appendChild(h);
+
+        sec.lines.forEach((cmd) => {
+          const block = document.createElement("div");
+          block.className = "command-block";
+
+          const pre = document.createElement("pre");
+          pre.textContent = inject(cmd);
+          block.appendChild(pre);
+
+          const btn = document.createElement("button");
+          btn.className = "copy-btn";
+          btn.textContent = "Copy";
+          btn.onclick = () => {
+            navigator.clipboard.writeText(pre.textContent);
+            btn.textContent = "✔";
+            setTimeout(() => (btn.textContent = "Copy"), 1200);
+          };
+          block.appendChild(btn);
+
+          commandsDiv.appendChild(block);
+        });
+      });
+    }
+
+    // Replace placeholder tokens with user values
+    function inject(str) {
+      let result = str;
+      for (const ph in placeholderMap) {
+        const val = document.getElementById(placeholderMap[ph]).value || ph;
+        const regex = new RegExp(ph, "g");
+        result = result.replace(regex, val);
+      }
+      return result;
+    }
+
+    // Re-render on variable change
+    document.querySelectorAll("#variables input").forEach((inp) => {
+      inp.addEventListener("input", renderCommands);
+    });
+
+    // First render
+    renderCommands();
+  </script>
+</body>
+</html>
