@@ -3,218 +3,226 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Pentest AD Cheatsheet</title>
-  <!-- Hacker‑style aesthetics -->
+  <title>Active Directory Enumeration Cheatsheet</title>
+  <!-- Hacker-style aesthetics -->
   <style>
-    :root {
-      --bg: #0d0d0d;
-      --fg: #00ff90;
-      --accent: #6affff;
-    }
-    * {
-      box-sizing: border-box;
-    }
-    body {
-      margin: 0;
-      font-family: "Source Code Pro", Menlo, monospace;
-      background: var(--bg);
-      color: var(--fg);
-    }
-    header {
-      padding: 1.5rem 1rem;
-      border-bottom: 1px solid var(--fg);
-    }
-    h1 {
-      margin: 0 0 1rem 0;
-      font-size: 1.8rem;
-      color: var(--accent);
-    }
-    label {
-      display: inline-block;
-      width: 170px;
-      margin: 0.25rem 0;
-    }
-    input {
-      background: #000;
-      color: var(--fg);
-      border: 1px solid var(--fg);
-      padding: 0.35rem 0.5rem;
-      width: 220px;
-    }
-    section {
-      padding: 1.25rem 1rem 3rem;
-    }
-    h2 {
-      color: var(--accent);
-      margin: 2rem 0 0.5rem;
-      font-size: 1.25rem;
-      border-bottom: 1px solid var(--accent);
-      padding-bottom: 0.25rem;
-    }
-    .command-block {
-      background: #000;
-      border: 1px solid var(--fg);
-      margin: 0.8rem 0;
-      padding: 0.75rem 0.5rem 0.75rem 0.75rem;
-      position: relative;
-      overflow-x: auto;
-    }
-    .command-block pre {
-      margin: 0;
-      white-space: pre-wrap;
-      word-break: break-all;
-    }
-    .copy-btn {
-      position: absolute;
-      top: 8px;
-      right: 8px;
-      padding: 4px 10px;
-      border: none;
-      background: var(--fg);
-      color: #000;
-      font-weight: 700;
-      cursor: pointer;
-    }
-    .copy-btn:active {
-      transform: scale(0.97);
-    }
+    :root { --bg: #0d0d0d; --fg: #00ff90; --accent: #6affff; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Source Code Pro", Menlo, monospace; background: var(--bg); color: var(--fg); }
+    header { padding: 1.5rem 1rem; border-bottom: 1px solid var(--fg); }
+    h1 { margin: 0 0 1rem; font-size: 1.8rem; color: var(--accent); }
+    label { display: inline-block; width: 170px; margin: 0.25rem 0; }
+    input { background: #000; color: var(--fg); border: 1px solid var(--fg); padding: 0.35rem 0.5rem; width: 220px; }
+    section { padding: 1.25rem 1rem 3rem; }
+    h2 { color: var(--accent); margin: 2rem 0 0.5rem; font-size: 1.25rem; border-bottom: 1px solid var(--accent); padding-bottom: 0.25rem; }
+    .command-block { background: #000; border: 1px solid var(--fg); margin: 0.8rem 0; padding: 0.75rem; position: relative; }
+    .command-block pre { margin: 0; white-space: pre-wrap; word-break: break-all; }
+    .copy-btn, .details-btn { position: absolute; top: 8px; padding: 4px 10px; border: none; background: var(--fg); color: #000; font-weight: 700; cursor: pointer; }
+    .copy-btn { right: 8px; }
+    .details-btn { right: 72px; }
+    .details-btn:active, .copy-btn:active { transform: scale(0.97); }
+    .details { display: none; margin-top: 0.75rem; color: var(--accent); border-top: 1px dashed var(--fg); padding-top: 0.5rem; }
   </style>
 </head>
 <body>
   <header>
-    <h1>🛠️ Pentest Active Directory Cheatsheet</h1>
-
-    <!-- Variable Input Panel -->
+    <h1>🛠️ Active Directory Enumeration Cheatsheet</h1>
     <div id="variables">
-      <label for="domain">DOMAIN</label><input id="domain" placeholder="acme.local" /><br />
-      <label for="domain_name">DOMAIN_NAME</label><input id="domain_name" placeholder="acme.local" /><br />
-      <label for="name_server">NAME_SERVER</label><input id="name_server" placeholder="ns.acme.local" /><br />
-      <label for="dc_ip">DC_IP</label><input id="dc_ip" placeholder="192.168.1.10" /><br />
-      <label for="ip">IP</label><input id="ip" placeholder="192.168.1.10" /><br />
-      <label for="users_list_file">USERS_LIST_FILE</label><input id="users_list_file" placeholder="users.txt" /><br />
+      <label for="domain">DOMAIN</label><input id="domain" placeholder="sevenkingdoms.local" /><br />
+      <label for="domain_name">DOMAIN_NAME</label><input id="domain_name" placeholder="sevenkingdoms.local" /><br />
+      <label for="name_server">NAME_SERVER</label><input id="name_server" placeholder="winterfell.north.sevenkingdoms.local" /><br />
+      <label for="dc_ip">DC_IP</label><input id="dc_ip" placeholder="192.168.56.11" /><br />
+      <label for="ip">IP</label><input id="ip" placeholder="192.168.56.11" /><br />
+      <label for="users_list_file">USERS_LIST_FILE</label><input id="users_list_file" placeholder="ListOfUser.txt" /><br />
     </div>
   </header>
-
-  <!-- Commands will render here -->
   <section id="commands"></section>
-
   <script>
-    /* ---------------------------------------------
-     *  Dynamic Command Renderer
-     * -------------------------------------------*/
-
-    // Cheatsheet commands with placeholder tokens
+    /* Cheatsheet commands with placeholders and descriptions */
     const commands = [
       {
-        section: "Find DC IP",
+        section: "🔍 Find Domain Controller (DC) IP",
         lines: [
-          "nmcli dev show eth0 # show domain name & dns",
-          "nslookup -type=SRV _ldap._tcp.dc._msdcs.DOMAIN",
-        ],
+          {
+            cmd: `nmcli dev show eth0`,
+            details: `- Shows interface details, including DNS server and domain name.
+- Useful to identify the current DNS server (usually the DC).
+- Critical for resolving internal AD-specific queries.`
+          },
+          {
+            cmd: `nslookup -type=SRV _ldap._tcp.dc._msdcs.DOMAIN`,
+            details: `- Queries DNS for LDAP SRV records to locate Domain Controllers.
+- Requires your DNS to point to a domain-aware server (usually the DC).
+- Returns the hostname and port of DCs in the domain.`
+          }
+        ]
       },
       {
-        section: "Zone Transfer",
-        lines: ["dig axfr DOMAIN_NAME @NAME_SERVER"],
+        section: "🌐 Zone Transfer (AXFR)",
+        lines: [
+          {
+            cmd: `dig axfr DOMAIN_NAME @NAME_SERVER`,
+            details: `- Tries to pull the entire DNS zone from the server.
+- Reveals internal hostnames, IPs, and AD infrastructure if misconfigured.
+- Usually disabled in production, but common in labs.`
+          }
+        ]
       },
       {
-        section: "List Guest Access on SMB Share",
+        section: "🗂️ List SMB Shares for Guest Access",
         lines: [
-          "enum4linux -a -u \"\" -p \"\" DC_IP",
-          "enum4linux -a -u \"guest\" -p \"\" DC_IP",
-          "smbmap -u \"\" -p \"\" -H DC_IP",
-          "smbmap -u \"guest\" -p \"\" -H DC_IP",
-          "smbclient -U '%' -L //DC_IP",
-          "smbclient -U 'guest%' -L //DC_IP",
-          "cme smb IP -u '' -p '' # enumerate null session",
-          "cme smb IP -u 'a' -p '' # enumerate anonymous access",
-        ],
+          {
+            cmd: `enum4linux -a -u "" -p "" DC_IP`,
+            details: `- Runs all enumeration modules using null session.
+- Attempts to list shares, users, policies, and group info.
+- Great for quick recon if guest/anonymous access is allowed.`
+          },
+          {
+            cmd: `enum4linux -a -u "guest" -p "" DC_IP`,
+            details: `- Same scan explicitly as guest user.
+- Tests permissive guest configurations.
+- Can bypass null restrictions if guest is allowed.`
+          },
+          {
+            cmd: `smbmap -u "" -p "" -H DC_IP`,
+            details: `- Lists SMB shares via null session.
+- Displays permissions like READ/WRITE per share.
+- Useful to confirm null SMB access.`
+          },
+          {
+            cmd: `smbmap -u "guest" -p "" -H DC_IP`,
+            details: `- Lists SMB shares using guest credentials.
+- More likely to succeed than pure null session.
+- Highlights overly permissive guest configs.`
+          },
+          {
+            cmd: `smbclient -U '%' -L //DC_IP`,
+            details: `- Anonymous login to list shares.
+- '%' means empty user/pass.
+- May fail if SMB1 is disabled or anonymous restricted.`
+          },
+          {
+            cmd: `smbclient -U 'guest%' -L //DC_IP`,
+            details: `- Uses 'guest' as user to list shares.
+- Tests for guest account access when null disabled.`
+          },
+          {
+            cmd: `nxc smb IP -u '' -p ''`,
+            details: `- nxc tries null session for SMB enumeration.
+- Checks for shares, users, and domain info.
+- Good for quick recon across hosts.`
+          },
+          {
+            cmd: `nxc smb IP -u 'a' -p ''`,
+            details: `- Sends invalid username with empty password.
+- Detects anonymous access fallback.
+- Can trigger useful error messages.`
+          }
+        ]
       },
       {
-        section: "Enumerate LDAP",
+        section: "🧬 Enumerate LDAP",
         lines: [
-          "nmap -n -sV --script \"ldap\" and not brute -p 389 DC_IP",
-          "ldapsearch -x -h IP -s base",
-        ],
+          {
+            cmd: `nmap -n -sV --script "ldap*" -p 389 DC_IP`,
+            details: `- Uses LDAP NSE scripts for service info and directory queries.
+- Excludes brute-force.
+- Reveals naming context, users, and schema when allowed.`
+          },
+          {
+            cmd: `ldapsearch -x -h IP -s base`,
+            details: `- Base-level anonymous LDAP query.
+- Retrieves RootDSE info including naming contexts.
+- Foundation for deeper LDAP queries.`
+          }
+        ]
       },
       {
-        section: "Find User List",
+        section: "👥 Find User List",
         lines: [
-          "enum4linux -U DC_IP | grep 'user'",
-          "cme smb IP --users",
-          "net rpc group members 'Domain Users' -W 'DOMAIN' -I IP -U '%'",
-          "nmap -p 88 --script=krb5-enum-users --script-args=\"krb5-enum-users.realm=DOMAIN\",userdb=USERS_LIST_FILE IP",
-        ],
+          {
+            cmd: `enum4linux -U DC_IP | grep 'user'`,
+            details: `- Pulls user list from NetBIOS if accessible.
+- Filters lines with 'user' for clarity.
+- Works in legacy or misconfigured domains.`
+          },
+          {
+            cmd: `nxc smb IP --users`,
+            details: `- Lists domain users via SMB protocols.
+- Fast way to check valid usernames.
+- Requires minimal permissions.`
+          },
+          {
+            cmd: `net rpc group members 'Domain Users' -W 'DOMAIN' -I IP -U '%'`,
+            details: `- Lists members of 'Domain Users' group via RPC.
+- Uses anonymous login.
+- Requires samba-common tools.`
+          },
+          {
+            cmd: `nmap -p 88 --script=krb5-enum-users --script-args="krb5-enum-users.realm=DOMAIN",userdb=USERS_LIST_FILE IP`,
+            details: `- Kerberos user enumeration.
+- Supplies USERS_LIST_FILE for usernames.
+- Detects valid accounts via TGT error responses.`
+          }
+        ]
       },
       {
-        section: "Poisoning (LLMNR/NBTNS/MDNS)",
+        section: "🧪 Poisoning (LLMNR / NBNS / mDNS)",
         lines: [
-          "responder -I eth0  # disable smb & http if relay",
-          "mitm6 -d DOMAIN",
-          "bettercap",
-        ],
-      },
+          {
+            cmd: `responder -I eth0`,
+            details: `- Listens for name resolution requests.
+- Captures hashes or redirects traffic.
+- Disable HTTP/SMB if using in relay mode.`
+          },
+          {
+            cmd: `mitm6 -d DOMAIN`,
+            details: `- Launches rogue IPv6 DHCP/DNS server.
+- Forces clients to authenticate via WPAD.
+- Targets Windows with IPv6 enabled.`
+          },
+          {
+            cmd: `bettercap -iface eth0`,
+            details: `- Modular MITM framework.
+- Supports LLMNR/NBNS/mDNS spoofing.
+- Use net.recon, net.probe, llmnrd plugins.`
+          }
+        ]
+      }
     ];
 
-    // Map placeholder → input#id
-    const placeholderMap = {
-      DOMAIN: "domain",
-      DOMAIN_NAME: "domain_name",
-      NAME_SERVER: "name_server",
-      DC_IP: "dc_ip",
-      IP: "ip",
-      USERS_LIST_FILE: "users_list_file",
-    };
-
+    const placeholderMap = { DOMAIN: "domain", DOMAIN_NAME: "domain_name", NAME_SERVER: "name_server", DC_IP: "dc_ip", IP: "ip", USERS_LIST_FILE: "users_list_file" };
     const commandsDiv = document.getElementById("commands");
 
-    // Render commands to the DOM
     function renderCommands() {
       commandsDiv.innerHTML = "";
-      commands.forEach((sec) => {
-        const h = document.createElement("h2");
-        h.textContent = sec.section;
-        commandsDiv.appendChild(h);
-
-        sec.lines.forEach((cmd) => {
-          const block = document.createElement("div");
-          block.className = "command-block";
-
-          const pre = document.createElement("pre");
-          pre.textContent = inject(cmd);
-          block.appendChild(pre);
-
-          const btn = document.createElement("button");
-          btn.className = "copy-btn";
-          btn.textContent = "Copy";
-          btn.onclick = () => {
-            navigator.clipboard.writeText(pre.textContent);
-            btn.textContent = "✔";
-            setTimeout(() => (btn.textContent = "Copy"), 1200);
-          };
-          block.appendChild(btn);
-
+      commands.forEach(sec => {
+        const h = document.createElement("h2"); h.textContent = sec.section; commandsDiv.appendChild(h);
+        sec.lines.forEach(item => {
+          const block = document.createElement("div"); block.className = "command-block";
+          const pre = document.createElement("pre"); pre.textContent = inject(item.cmd); block.appendChild(pre);
+          const copyBtn = document.createElement("button"); copyBtn.className = "copy-btn"; copyBtn.textContent = "Copy";
+          copyBtn.onclick = () => { navigator.clipboard.writeText(pre.textContent); copyBtn.textContent = "✔"; setTimeout(() => copyBtn.textContent = "Copy", 1200); };
+          block.appendChild(copyBtn);
+          const detailsBtn = document.createElement("button"); detailsBtn.className = "details-btn"; detailsBtn.textContent = "Details";
+          detailsBtn.onclick = () => { const d = block.querySelector(".details"); d.style.display = d.style.display === "block" ? "none" : "block"; detailsBtn.textContent = d.style.display === "block" ? "Hide" : "Details"; };
+          block.appendChild(detailsBtn);
+          const detailsDiv = document.createElement("div"); detailsDiv.className = "details"; detailsDiv.innerHTML = item.details.replace(/\n/g, '<br>'); block.appendChild(detailsDiv);
           commandsDiv.appendChild(block);
         });
       });
     }
 
-    // Replace placeholder tokens with user values
     function inject(str) {
-      let result = str;
+      let res = str;
       for (const ph in placeholderMap) {
         const val = document.getElementById(placeholderMap[ph]).value || ph;
-        const regex = new RegExp(ph, "g");
-        result = result.replace(regex, val);
+        res = res.replace(new RegExp(ph, 'g'), val);
       }
-      return result;
+      return res;
     }
 
-    // Re-render on variable change
-    document.querySelectorAll("#variables input").forEach((inp) => {
-      inp.addEventListener("input", renderCommands);
-    });
-
-    // First render
+    document.querySelectorAll("#variables input").forEach(inp => inp.addEventListener("input", renderCommands));
     renderCommands();
   </script>
 </body>
